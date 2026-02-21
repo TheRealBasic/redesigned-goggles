@@ -59,8 +59,8 @@ bool Application::run() {
     bool running = true;
     std::uint64_t previous = SDL_GetPerformanceCounter();
 
-    Light playerLight{player.x(), player.y(), 4.2F, 0.88F};
-    Light lampLight{11.0F, 7.0F, 4.0F, 0.72F};
+    Light playerLight{player.x(), player.y(), 4.2F, 0.88F, 1.00F, 0.78F, 0.52F, 2.3F};
+    Light lampLight{11.0F, 7.0F, 4.0F, 0.72F, 1.00F, 0.70F, 0.42F, 1.8F};
 
     float worldTime = 0.0F;
 
@@ -97,7 +97,7 @@ bool Application::run() {
             playerLight.y = player.y();
 
             const float dayNight = 0.5F + 0.5F * std::sin(worldTime * 0.12F);
-            const float ambient = 0.2F + 0.35F * dayNight;
+            const float ambient = 0.14F + 0.22F * dayNight;
             renderer.setAmbient(ambient);
 
             const float playerFlicker = 0.93F + 0.07F * std::sin(worldTime * 14.0F + 1.1F);

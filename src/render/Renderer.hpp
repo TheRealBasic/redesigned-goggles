@@ -13,6 +13,10 @@ struct Light {
     float y;
     float radius;
     float intensity;
+    float r;
+    float g;
+    float b;
+    float falloffExponent;
 };
 
 class Renderer {
