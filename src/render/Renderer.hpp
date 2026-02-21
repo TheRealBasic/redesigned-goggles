@@ -2,10 +2,6 @@
 
 #include <SDL2/SDL.h>
 
-#ifndef GL_GLEXT_PROTOTYPES
-#define GL_GLEXT_PROTOTYPES
-#endif
-
 #include <SDL2/SDL_opengl.h>
 #include <SDL2/SDL_opengl_glext.h>
 
@@ -34,6 +30,7 @@ public:
     void render(const Map& map, const Player& player, const Light& playerLight, const Light& lampLight);
 
 private:
+    bool loadGlFunctions();
     bool initializeGpuPipeline();
     void destroyGpuPipeline();
     bool ensureRenderTargets();
