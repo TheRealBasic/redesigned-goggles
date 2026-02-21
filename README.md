@@ -13,10 +13,30 @@ This repository now contains a first playable foundation for a no-engine, C++ we
 - Simple player idle/walk animation (procedural bob + sway).
 - 4K window target (3840x2160).
 
+## Dependencies
+
+- CMake 3.20+
+- C++20 compiler
+- OpenGL development libraries
+- SDL2 development libraries (`SDL2Config.cmake` or `sdl2.pc`)
+
+Example package names:
+
+- Ubuntu/Debian: `sudo apt install libsdl2-dev libgl-dev`
+- Fedora: `sudo dnf install SDL2-devel mesa-libGL-devel`
+- Arch: `sudo pacman -S sdl2 mesa`
+
 ## Build
 
 ```bash
 cmake -S . -B build
+cmake --build build
+```
+
+If SDL2 is not available on your system, you can ask CMake to fetch it:
+
+```bash
+cmake -S . -B build -DFETCH_SDL2_IF_MISSING=ON
 cmake --build build
 ```
 
