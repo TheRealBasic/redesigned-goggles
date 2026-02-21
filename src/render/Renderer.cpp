@@ -77,9 +77,6 @@ GlFunctions g_gl;
 
 constexpr float kTileW = 64.0F;
 constexpr float kTileH = 32.0F;
-constexpr float kOriginX = 640.0F;
-constexpr float kOriginY = 120.0F;
-
 constexpr char kFullscreenVertexShader[] = R"(
 #version 120
 
@@ -264,13 +261,22 @@ void Renderer::setGlobalTint(float r, float g, float b) {
 }
 
 void Renderer::render(const Map& map, const Player& player, const Light& playerLight, const Light& lampLight) {
+    int width = 0;
+    int height = 0;
+    SDL_GetWindowSize(m_window, &width, &height);
+
+    const float mapPixelWidth = static_cast<float>(map.width() + map.height()) * (kTileW * 0.5F);
+    const float mapPixelHeight = static_cast<float>(map.width() + map.height()) * (kTileH * 0.5F);
+    const float originX = (static_cast<float>(width) - mapPixelWidth) * 0.5F;
+    const float originY = (static_cast<float>(height) - mapPixelHeight) * 0.5F;
+
     if (m_forceCpuPath) {
-        renderCpuLighting(map, player, playerLight, lampLight);
+        renderCpuLighting(map, player, playerLight, lampLight, originX, originY);
         return;
     }
 
     if (!ensureRenderTargets()) {
-        renderCpuLighting(map, player, playerLight, lampLight);
+        renderCpuLighting(map, player, playerLight, lampLight, originX, originY);
         return;
     }
 
@@ -288,7 +294,7 @@ void Renderer::render(const Map& map, const Player& player, const Light& playerL
     glClearColor(0.0F, 0.0F, 0.0F, 1.0F);
     glClear(GL_COLOR_BUFFER_BIT);
     glUseProgram(m_albedoProgram);
-    renderSceneAlbedo(map, player);
+    renderSceneAlbedo(map, player, originX, originY);
 
     glBindFramebuffer(GL_FRAMEBUFFER, m_lightFbo);
     glViewport(0, 0, m_targetWidth, m_targetHeight);
@@ -297,7 +303,7 @@ void Renderer::render(const Map& map, const Player& player, const Light& playerL
     glUseProgram(m_lightProgram);
     glUniform2f(glGetUniformLocation(m_lightProgram, "uResolution"), static_cast<float>(m_targetWidth), static_cast<float>(m_targetHeight));
     glUniform2f(glGetUniformLocation(m_lightProgram, "uIsoTile"), kTileW, kTileH);
-    glUniform2f(glGetUniformLocation(m_lightProgram, "uIsoOrigin"), kOriginX, kOriginY);
+    glUniform2f(glGetUniformLocation(m_lightProgram, "uIsoOrigin"), originX, originY);
     glUniform1f(glGetUniformLocation(m_lightProgram, "uAmbient"), m_ambient);
     glUniform3f(glGetUniformLocation(m_lightProgram, "uAmbientColor"), 0.68F, 0.74F, 0.84F);
     glUniform4f(glGetUniformLocation(m_lightProgram, "uPlayerLight"), playerLight.x, playerLight.y, playerLight.radius, playerLight.intensity);
@@ -571,7 +577,13 @@ GLuint Renderer::linkProgram(GLuint vertexShader, GLuint fragmentShader, const c
     return program;
 }
 
-void Renderer::renderCpuLighting(const Map& map, const Player& player, const Light& playerLight, const Light& lampLight) const {
+void Renderer::renderCpuLighting(
+    const Map& map,
+    const Player& player,
+    const Light& playerLight,
+    const Light& lampLight,
+    float originX,
+    float originY) const {
     glClearColor(0.06F, 0.06F, 0.08F, 1.0F);
     glClear(GL_COLOR_BUFFER_BIT);
 
@@ -593,8 +605,8 @@ void Renderer::renderCpuLighting(const Map& map, const Player& player, const Lig
     for (int y = 0; y < map.height(); ++y) {
         for (int x = 0; x < map.width(); ++x) {
             const bool blocked = map.isBlocked(x, y);
-            const float sx = kOriginX + (x - y) * (kTileW * 0.5F);
-            const float sy = kOriginY + (x + y) * (kTileH * 0.5F);
+            const float sx = originX + (x - y) * (kTileW * 0.5F);
+            const float sy = originY + (x + y) * (kTileH * 0.5F);
 
             const float playerContribution = directWithOcclusion(map, x, y, playerLight, playerOcclusion);
             const float lampContribution = directWithOcclusion(map, x, y, lampLight, lampOcclusion);
@@ -626,8 +638,8 @@ void Renderer::renderCpuLighting(const Map& map, const Player& player, const Lig
     }
     glEnd();
 
-    const float playerSx = kOriginX + (player.x() - player.y()) * (kTileW * 0.5F) + kTileW * 0.5F;
-    const float playerSyBase = kOriginY + (player.x() + player.y()) * (kTileH * 0.5F) + kTileH * 0.5F;
+    const float playerSx = originX + (player.x() - player.y()) * (kTileW * 0.5F) + kTileW * 0.5F;
+    const float playerSyBase = originY + (player.x() + player.y()) * (kTileH * 0.5F) + kTileH * 0.5F;
 
     const float bob = std::sin(player.walkPhase() * 2.0F) * 2.5F * player.moveBlend();
     const float sway = std::sin(player.walkPhase()) * 1.8F * player.moveBlend();
@@ -652,13 +664,13 @@ void Renderer::renderCpuLighting(const Map& map, const Player& player, const Lig
     SDL_GL_SwapWindow(m_window);
 }
 
-void Renderer::renderSceneAlbedo(const Map& map, const Player& player) const {
+void Renderer::renderSceneAlbedo(const Map& map, const Player& player, float originX, float originY) const {
     glBegin(GL_QUADS);
     for (int y = 0; y < map.height(); ++y) {
         for (int x = 0; x < map.width(); ++x) {
             const bool blocked = map.isBlocked(x, y);
-            const float sx = kOriginX + (x - y) * (kTileW * 0.5F);
-            const float sy = kOriginY + (x + y) * (kTileH * 0.5F);
+            const float sx = originX + (x - y) * (kTileW * 0.5F);
+            const float sy = originY + (x + y) * (kTileH * 0.5F);
 
             if (blocked) {
                 glColor3f(0.42F, 0.30F, 0.20F);
@@ -674,8 +686,8 @@ void Renderer::renderSceneAlbedo(const Map& map, const Player& player) const {
     }
     glEnd();
 
-    const float playerSx = kOriginX + (player.x() - player.y()) * (kTileW * 0.5F) + kTileW * 0.5F;
-    const float playerSyBase = kOriginY + (player.x() + player.y()) * (kTileH * 0.5F) + kTileH * 0.5F;
+    const float playerSx = originX + (player.x() - player.y()) * (kTileW * 0.5F) + kTileW * 0.5F;
+    const float playerSyBase = originY + (player.x() + player.y()) * (kTileH * 0.5F) + kTileH * 0.5F;
 
     const float bob = std::sin(player.walkPhase() * 2.0F) * 2.5F * player.moveBlend();
     const float sway = std::sin(player.walkPhase()) * 1.8F * player.moveBlend();
