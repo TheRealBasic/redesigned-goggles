@@ -1,1 +1,5 @@
-// Placeholder for future albedo pass shader.
+#version 120
+
+void main() {
+    gl_FragColor = gl_Color;
+}
