@@ -5,17 +5,21 @@
 
 #include <SDL2/SDL_opengl.h>
 
+#include <algorithm>
+#include <cmath>
+
 namespace {
+float smootherFalloff(float normalizedDistance) {
+    const float t = std::clamp(1.0F - normalizedDistance, 0.0F, 1.0F);
+    return t * t * (3.0F - 2.0F * t);
+}
+
 float pseudoLight(float tileX, float tileY, const Light& light) {
     const float dx = tileX - light.x;
     const float dy = tileY - light.y;
-    const float distSq = dx * dx + dy * dy;
-    const float radiusSq = light.radius * light.radius;
-    if (distSq >= radiusSq) {
-        return 0.0F;
-    }
-    const float attenuation = 1.0F - (distSq / radiusSq);
-    return attenuation * light.intensity;
+    const float dist = std::sqrt(dx * dx + dy * dy);
+    const float normalized = dist / std::max(0.001F, light.radius);
+    return smootherFalloff(normalized) * light.intensity;
 }
 } // namespace
 
@@ -33,7 +37,7 @@ void Renderer::shutdown() {
 }
 
 void Renderer::setAmbient(float value) {
-    m_ambient = value;
+    m_ambient = std::clamp(value, 0.0F, 1.0F);
 }
 
 void Renderer::render(const Map& map, const Player& player, const Light& playerLight, const Light& lampLight) {
@@ -81,14 +85,26 @@ void Renderer::render(const Map& map, const Player& player, const Light& playerL
     glEnd();
 
     const float playerSx = originX + (player.x() - player.y()) * (tileW * 0.5F) + tileW * 0.5F;
-    const float playerSy = originY + (player.x() + player.y()) * (tileH * 0.5F) + tileH * 0.5F;
+    const float playerSyBase = originY + (player.x() + player.y()) * (tileH * 0.5F) + tileH * 0.5F;
+
+    const float bob = std::sin(player.walkPhase() * 2.0F) * 2.5F * player.moveBlend();
+    const float sway = std::sin(player.walkPhase()) * 1.8F * player.moveBlend();
+    const float playerSy = playerSyBase - bob;
+
+    glColor3f(0.10F, 0.10F, 0.12F);
+    glBegin(GL_QUADS);
+    glVertex2f(playerSx - 9.0F, playerSyBase + 2.0F);
+    glVertex2f(playerSx + 9.0F, playerSyBase + 2.0F);
+    glVertex2f(playerSx + 9.0F, playerSyBase + 6.0F);
+    glVertex2f(playerSx - 9.0F, playerSyBase + 6.0F);
+    glEnd();
 
     glColor3f(0.2F, 0.4F, 0.85F);
     glBegin(GL_QUADS);
-    glVertex2f(playerSx - 8.0F, playerSy - 20.0F);
-    glVertex2f(playerSx + 8.0F, playerSy - 20.0F);
-    glVertex2f(playerSx + 8.0F, playerSy);
-    glVertex2f(playerSx - 8.0F, playerSy);
+    glVertex2f(playerSx - 8.0F + sway, playerSy - 20.0F);
+    glVertex2f(playerSx + 8.0F + sway, playerSy - 20.0F);
+    glVertex2f(playerSx + 8.0F - sway, playerSy);
+    glVertex2f(playerSx - 8.0F - sway, playerSy);
     glEnd();
 
     SDL_GL_SwapWindow(m_window);
