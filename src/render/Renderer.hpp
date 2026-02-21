@@ -39,8 +39,14 @@ private:
     GLuint compileShader(GLenum shaderType, const char* source, const char* label) const;
     GLuint linkProgram(GLuint vertexShader, GLuint fragmentShader, const char* label) const;
 
-    void renderCpuLighting(const Map& map, const Player& player, const Light& playerLight, const Light& lampLight) const;
-    void renderSceneAlbedo(const Map& map, const Player& player) const;
+    void renderCpuLighting(
+        const Map& map,
+        const Player& player,
+        const Light& playerLight,
+        const Light& lampLight,
+        float originX,
+        float originY) const;
+    void renderSceneAlbedo(const Map& map, const Player& player, float originX, float originY) const;
     void drawFullscreenQuad() const;
 
     SDL_Window* m_window = nullptr;
