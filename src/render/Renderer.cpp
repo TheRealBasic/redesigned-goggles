@@ -11,8 +11,67 @@
 #include <fstream>
 #include <sstream>
 #include <vector>
+#include <type_traits>
+
 
 namespace {
+
+struct GlFunctions {
+    PFNGLACTIVETEXTUREPROC activeTexture = nullptr;
+    PFNGLATTACHSHADERPROC attachShader = nullptr;
+    PFNGLCOMPILESHADERPROC compileShader = nullptr;
+    PFNGLCREATEPROGRAMPROC createProgram = nullptr;
+    PFNGLCREATESHADERPROC createShader = nullptr;
+    PFNGLDELETEPROGRAMPROC deleteProgram = nullptr;
+    PFNGLDELETESHADERPROC deleteShader = nullptr;
+    PFNGLGETPROGRAMIVPROC getProgramiv = nullptr;
+    PFNGLGETPROGRAMINFOLOGPROC getProgramInfoLog = nullptr;
+    PFNGLGETSHADERIVPROC getShaderiv = nullptr;
+    PFNGLGETSHADERINFOLOGPROC getShaderInfoLog = nullptr;
+    PFNGLGETUNIFORMLOCATIONPROC getUniformLocation = nullptr;
+    PFNGLLINKPROGRAMPROC linkProgram = nullptr;
+    PFNGLSHADERSOURCEPROC shaderSource = nullptr;
+    PFNGLUSEPROGRAMPROC useProgram = nullptr;
+    PFNGLUNIFORM1FPROC uniform1f = nullptr;
+    PFNGLUNIFORM2FPROC uniform2f = nullptr;
+    PFNGLUNIFORM3FPROC uniform3f = nullptr;
+    PFNGLUNIFORM4FPROC uniform4f = nullptr;
+    PFNGLUNIFORM1IPROC uniform1i = nullptr;
+    PFNGLBINDFRAMEBUFFERPROC bindFramebuffer = nullptr;
+    PFNGLDELETEFRAMEBUFFERSPROC deleteFramebuffers = nullptr;
+    PFNGLGENFRAMEBUFFERSPROC genFramebuffers = nullptr;
+    PFNGLCHECKFRAMEBUFFERSTATUSPROC checkFramebufferStatus = nullptr;
+    PFNGLFRAMEBUFFERTEXTURE2DPROC framebufferTexture2D = nullptr;
+};
+
+GlFunctions g_gl;
+
+#define glActiveTexture g_gl.activeTexture
+#define glAttachShader g_gl.attachShader
+#define glCompileShader g_gl.compileShader
+#define glCreateProgram g_gl.createProgram
+#define glCreateShader g_gl.createShader
+#define glDeleteProgram g_gl.deleteProgram
+#define glDeleteShader g_gl.deleteShader
+#define glGetProgramiv g_gl.getProgramiv
+#define glGetProgramInfoLog g_gl.getProgramInfoLog
+#define glGetShaderiv g_gl.getShaderiv
+#define glGetShaderInfoLog g_gl.getShaderInfoLog
+#define glGetUniformLocation g_gl.getUniformLocation
+#define glLinkProgram g_gl.linkProgram
+#define glShaderSource g_gl.shaderSource
+#define glUseProgram g_gl.useProgram
+#define glUniform1f g_gl.uniform1f
+#define glUniform2f g_gl.uniform2f
+#define glUniform3f g_gl.uniform3f
+#define glUniform4f g_gl.uniform4f
+#define glUniform1i g_gl.uniform1i
+#define glBindFramebuffer g_gl.bindFramebuffer
+#define glDeleteFramebuffers g_gl.deleteFramebuffers
+#define glGenFramebuffers g_gl.genFramebuffers
+#define glCheckFramebufferStatus g_gl.checkFramebufferStatus
+#define glFramebufferTexture2D g_gl.framebufferTexture2D
+
 constexpr float kTileW = 64.0F;
 constexpr float kTileH = 32.0F;
 constexpr float kOriginX = 640.0F;
@@ -126,6 +185,10 @@ bool Renderer::initialize(SDL_Window* window) {
     }
 
     const char* forceCpu = std::getenv(kUseGpuLightingEnv);
+    if (!loadGlFunctions()) {
+        m_forceCpuPath = true;
+        return true;
+    }
     m_forceCpuPath = forceCpu != nullptr && forceCpu[0] != '\0' && forceCpu[0] != '0';
 
     if (!m_forceCpuPath && !initializeGpuPipeline()) {
@@ -218,6 +281,40 @@ void Renderer::render(const Map& map, const Player& player, const Light& playerL
     glBindTexture(GL_TEXTURE_2D, 0);
     glActiveTexture(GL_TEXTURE0);
     SDL_GL_SwapWindow(m_window);
+}
+
+
+bool Renderer::loadGlFunctions() {
+    auto loadProc = [](auto& proc, const char* name) {
+        proc = reinterpret_cast<std::remove_reference_t<decltype(proc)>>(SDL_GL_GetProcAddress(name));
+        return proc != nullptr;
+    };
+
+    return loadProc(g_gl.activeTexture, "glActiveTexture") &&
+        loadProc(g_gl.attachShader, "glAttachShader") &&
+        loadProc(g_gl.compileShader, "glCompileShader") &&
+        loadProc(g_gl.createProgram, "glCreateProgram") &&
+        loadProc(g_gl.createShader, "glCreateShader") &&
+        loadProc(g_gl.deleteProgram, "glDeleteProgram") &&
+        loadProc(g_gl.deleteShader, "glDeleteShader") &&
+        loadProc(g_gl.getProgramiv, "glGetProgramiv") &&
+        loadProc(g_gl.getProgramInfoLog, "glGetProgramInfoLog") &&
+        loadProc(g_gl.getShaderiv, "glGetShaderiv") &&
+        loadProc(g_gl.getShaderInfoLog, "glGetShaderInfoLog") &&
+        loadProc(g_gl.getUniformLocation, "glGetUniformLocation") &&
+        loadProc(g_gl.linkProgram, "glLinkProgram") &&
+        loadProc(g_gl.shaderSource, "glShaderSource") &&
+        loadProc(g_gl.useProgram, "glUseProgram") &&
+        loadProc(g_gl.uniform1f, "glUniform1f") &&
+        loadProc(g_gl.uniform2f, "glUniform2f") &&
+        loadProc(g_gl.uniform3f, "glUniform3f") &&
+        loadProc(g_gl.uniform4f, "glUniform4f") &&
+        loadProc(g_gl.uniform1i, "glUniform1i") &&
+        loadProc(g_gl.bindFramebuffer, "glBindFramebuffer") &&
+        loadProc(g_gl.deleteFramebuffers, "glDeleteFramebuffers") &&
+        loadProc(g_gl.genFramebuffers, "glGenFramebuffers") &&
+        loadProc(g_gl.checkFramebufferStatus, "glCheckFramebufferStatus") &&
+        loadProc(g_gl.framebufferTexture2D, "glFramebufferTexture2D");
 }
 
 bool Renderer::initializeGpuPipeline() {
