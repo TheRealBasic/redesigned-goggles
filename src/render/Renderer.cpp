@@ -152,6 +152,12 @@ void Renderer::setAmbient(float value) {
     m_ambient = std::clamp(value, 0.0F, 1.0F);
 }
 
+void Renderer::setGlobalTint(float r, float g, float b) {
+    m_globalTintR = std::clamp(r, 0.0F, 2.0F);
+    m_globalTintG = std::clamp(g, 0.0F, 2.0F);
+    m_globalTintB = std::clamp(b, 0.0F, 2.0F);
+}
+
 void Renderer::render(const Map& map, const Player& player, const Light& playerLight, const Light& lampLight) {
     if (m_forceCpuPath) {
         renderCpuLighting(map, player, playerLight, lampLight);
@@ -208,6 +214,7 @@ void Renderer::render(const Map& map, const Player& player, const Light& playerL
     glActiveTexture(GL_TEXTURE1);
     glBindTexture(GL_TEXTURE_2D, m_lightTex);
     glUniform1i(glGetUniformLocation(m_compositeProgram, "uLightTex"), 1);
+    glUniform3f(glGetUniformLocation(m_compositeProgram, "uGlobalTint"), m_globalTintR, m_globalTintG, m_globalTintB);
 
     drawFullscreenQuad();
 
@@ -453,9 +460,9 @@ void Renderer::renderCpuLighting(const Map& map, const Player& player, const Lig
             lightG = lightG / (1.0F + lightG);
             lightB = lightB / (1.0F + lightB);
 
-            lightR = std::clamp(lightR, 0.0F, 1.0F);
-            lightG = std::clamp(lightG, 0.0F, 1.0F);
-            lightB = std::clamp(lightB, 0.0F, 1.0F);
+            lightR = std::clamp(lightR * m_globalTintR, 0.0F, 1.0F);
+            lightG = std::clamp(lightG * m_globalTintG, 0.0F, 1.0F);
+            lightB = std::clamp(lightB * m_globalTintB, 0.0F, 1.0F);
 
             if (blocked) {
                 glColor3f(0.42F * lightR, 0.30F * lightG, 0.20F * lightB);
