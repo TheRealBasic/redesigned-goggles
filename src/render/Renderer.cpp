@@ -32,17 +32,22 @@ void main() {
 
 constexpr char kUseGpuLightingEnv[] = "RENDERER_FORCE_CPU_LIGHTING";
 
-float smootherFalloff(float normalizedDistance) {
-    const float t = std::clamp(1.0F - normalizedDistance, 0.0F, 1.0F);
-    return t * t * (3.0F - 2.0F * t);
-}
-
 float pseudoLight(float tileX, float tileY, const Light& light) {
     const float dx = tileX - light.x;
     const float dy = tileY - light.y;
     const float dist = std::sqrt(dx * dx + dy * dy);
-    const float normalized = dist / std::max(0.001F, light.radius);
-    return smootherFalloff(normalized) * light.intensity;
+    const float radius = std::max(0.001F, light.radius);
+    const float normalized = dist / radius;
+
+    float attenuation = 0.0F;
+    if (light.falloffExponent > 0.0F) {
+        attenuation = std::pow(std::clamp(1.0F - normalized, 0.0F, 1.0F), light.falloffExponent);
+    } else {
+        const float k = 1.0F / (radius * radius);
+        attenuation = 1.0F / (1.0F + k * dist * dist);
+    }
+
+    return attenuation * light.intensity;
 }
 } // namespace
 
@@ -112,8 +117,11 @@ void Renderer::render(const Map& map, const Player& player, const Light& playerL
     glUniform2f(glGetUniformLocation(m_lightProgram, "uIsoTile"), kTileW, kTileH);
     glUniform2f(glGetUniformLocation(m_lightProgram, "uIsoOrigin"), kOriginX, kOriginY);
     glUniform1f(glGetUniformLocation(m_lightProgram, "uAmbient"), m_ambient);
+    glUniform3f(glGetUniformLocation(m_lightProgram, "uAmbientColor"), 0.68F, 0.74F, 0.84F);
     glUniform4f(glGetUniformLocation(m_lightProgram, "uPlayerLight"), playerLight.x, playerLight.y, playerLight.radius, playerLight.intensity);
     glUniform4f(glGetUniformLocation(m_lightProgram, "uLampLight"), lampLight.x, lampLight.y, lampLight.radius, lampLight.intensity);
+    glUniform4f(glGetUniformLocation(m_lightProgram, "uPlayerLightColor"), playerLight.r, playerLight.g, playerLight.b, playerLight.falloffExponent);
+    glUniform4f(glGetUniformLocation(m_lightProgram, "uLampLightColor"), lampLight.r, lampLight.g, lampLight.b, lampLight.falloffExponent);
     drawFullscreenQuad();
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -359,17 +367,26 @@ void Renderer::renderCpuLighting(const Map& map, const Player& player, const Lig
             const float sx = kOriginX + (x - y) * (kTileW * 0.5F);
             const float sy = kOriginY + (x + y) * (kTileH * 0.5F);
 
-            float light = m_ambient;
-            light += pseudoLight(static_cast<float>(x), static_cast<float>(y), playerLight);
-            light += pseudoLight(static_cast<float>(x), static_cast<float>(y), lampLight);
-            if (light > 1.0F) {
-                light = 1.0F;
-            }
+            const float playerContribution = pseudoLight(static_cast<float>(x), static_cast<float>(y), playerLight);
+            const float lampContribution = pseudoLight(static_cast<float>(x), static_cast<float>(y), lampLight);
+            const float ambient = m_ambient;
+
+            float lightR = 0.68F * ambient + playerLight.r * playerContribution + lampLight.r * lampContribution;
+            float lightG = 0.74F * ambient + playerLight.g * playerContribution + lampLight.g * lampContribution;
+            float lightB = 0.84F * ambient + playerLight.b * playerContribution + lampLight.b * lampContribution;
+
+            lightR = lightR / (1.0F + lightR);
+            lightG = lightG / (1.0F + lightG);
+            lightB = lightB / (1.0F + lightB);
+
+            lightR = std::clamp(lightR, 0.0F, 1.0F);
+            lightG = std::clamp(lightG, 0.0F, 1.0F);
+            lightB = std::clamp(lightB, 0.0F, 1.0F);
 
             if (blocked) {
-                glColor3f(0.42F * light, 0.30F * light, 0.20F * light);
+                glColor3f(0.42F * lightR, 0.30F * lightG, 0.20F * lightB);
             } else {
-                glColor3f(0.67F * light, 0.59F * light, 0.34F * light);
+                glColor3f(0.67F * lightR, 0.59F * lightG, 0.34F * lightB);
             }
 
             glVertex2f(sx, sy + kTileH * 0.5F);
