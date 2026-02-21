@@ -9,7 +9,8 @@ This repository now contains a first playable foundation for a no-engine, C++ we
 - Isometric tile rendering with 128x64 logical tile assumptions.
 - 8-direction normalized movement (WASD + arrows).
 - Tile-based collision with wall sliding.
-- Basic dynamic lighting model (ambient + player lantern + lamp).
+- Basic dynamic lighting model (ambient + player lantern + lamp) with soft falloff and flicker.
+- Simple player idle/walk animation (procedural bob + sway).
 - 4K window target (3840x2160).
 
 ## Build

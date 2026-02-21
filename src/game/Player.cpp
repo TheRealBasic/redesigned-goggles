@@ -2,7 +2,12 @@
 
 #include "game/Map.hpp"
 
+#include <algorithm>
 #include <cmath>
+
+namespace {
+constexpr float kTau = 6.28318530718F;
+}
 
 void Player::setPosition(float x, float y) {
     m_x = x;
@@ -41,7 +46,21 @@ void Player::update(const InputState& input, const Map& map, float dtSeconds) {
     if (!map.isBlocked(static_cast<int>(m_x), static_cast<int>(candidateY))) {
         m_y = candidateY;
     }
+
+    const float targetBlend = length > 0.0F ? 1.0F : 0.0F;
+    const float blendRate = 8.0F;
+    m_moveBlend += (targetBlend - m_moveBlend) * std::min(1.0F, blendRate * dtSeconds);
+
+    if (length > 0.0F) {
+        const float walkCyclesPerSecond = 2.4F;
+        m_walkPhase += kTau * walkCyclesPerSecond * dtSeconds;
+        if (m_walkPhase >= kTau) {
+            m_walkPhase = std::fmod(m_walkPhase, kTau);
+        }
+    }
 }
 
 float Player::x() const { return m_x; }
 float Player::y() const { return m_y; }
+float Player::walkPhase() const { return m_walkPhase; }
+float Player::moveBlend() const { return m_moveBlend; }

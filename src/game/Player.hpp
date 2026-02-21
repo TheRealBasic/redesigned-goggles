@@ -16,9 +16,13 @@ public:
 
     float x() const;
     float y() const;
+    float walkPhase() const;
+    float moveBlend() const;
 
 private:
     float m_x = 2.0F;
     float m_y = 2.0F;
     float m_speed = 4.0F;
+    float m_walkPhase = 0.0F;
+    float m_moveBlend = 0.0F;
 };

@@ -8,7 +8,12 @@
 #include <SDL2/SDL.h>
 
 #include <algorithm>
+#include <cmath>
 #include <cstdint>
+
+namespace {
+constexpr float kTau = 6.28318530718F;
+}
 
 bool Application::run() {
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
@@ -54,8 +59,10 @@ bool Application::run() {
     bool running = true;
     std::uint64_t previous = SDL_GetPerformanceCounter();
 
-    Light playerLight{player.x(), player.y(), 4.0F, 0.85F};
-    Light lampLight{11.0F, 7.0F, 3.5F, 0.7F};
+    Light playerLight{player.x(), player.y(), 4.2F, 0.88F};
+    Light lampLight{11.0F, 7.0F, 4.0F, 0.72F};
+
+    float worldTime = 0.0F;
 
     while (running) {
         const std::uint64_t current = SDL_GetPerformanceCounter();
@@ -82,9 +89,25 @@ bool Application::run() {
 
         timer.tick(std::min(frameSeconds, 0.1));
         while (timer.canStep()) {
-            player.update(input, map, static_cast<float>(timer.delta()));
+            const float dt = static_cast<float>(timer.delta());
+            worldTime += dt;
+
+            player.update(input, map, dt);
             playerLight.x = player.x();
             playerLight.y = player.y();
+
+            const float dayNight = 0.5F + 0.5F * std::sin(worldTime * 0.12F);
+            const float ambient = 0.2F + 0.35F * dayNight;
+            renderer.setAmbient(ambient);
+
+            const float playerFlicker = 0.93F + 0.07F * std::sin(worldTime * 14.0F + 1.1F);
+            const float lampFlicker = 0.9F + 0.1F * std::sin(worldTime * 9.0F + 0.3F) * std::sin(worldTime * 5.0F + 0.8F);
+            playerLight.intensity = 0.82F * playerFlicker;
+            lampLight.intensity = 0.66F * lampFlicker;
+
+            playerLight.radius = 3.9F + 0.25F * std::sin(worldTime * 3.5F);
+            lampLight.radius = 3.6F + 0.45F * (0.5F + 0.5F * std::sin(worldTime * 2.1F + kTau * 0.25F));
+
             timer.consumeStep();
         }
 
