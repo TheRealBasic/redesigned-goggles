@@ -28,16 +28,35 @@ float mix(float a, float b, float t) {
 }
 
 fs::path resolveAssetPath(const fs::path& relativePath) {
-    if (fs::exists(relativePath)) {
-        return relativePath;
+    auto findFromRoot = [&](const fs::path& root) -> fs::path {
+        std::error_code ec;
+        fs::path cursor = root;
+
+        while (!cursor.empty()) {
+            const fs::path candidate = cursor / relativePath;
+            if (fs::exists(candidate, ec) && !ec) {
+                return candidate;
+            }
+
+            const fs::path parent = cursor.parent_path();
+            if (parent == cursor) {
+                break;
+            }
+            cursor = parent;
+        }
+
+        return {};
+    };
+
+    if (const fs::path fromCwd = findFromRoot(fs::current_path()); !fromCwd.empty()) {
+        return fromCwd;
     }
 
-    const char* basePath = SDL_GetBasePath();
-    if (basePath != nullptr) {
-        const fs::path candidate = fs::path(basePath) / relativePath;
+    if (const char* basePath = SDL_GetBasePath(); basePath != nullptr) {
+        const fs::path fromBasePath = findFromRoot(fs::path(basePath));
         SDL_free(const_cast<char*>(basePath));
-        if (fs::exists(candidate)) {
-            return candidate;
+        if (!fromBasePath.empty()) {
+            return fromBasePath;
         }
     }
 
