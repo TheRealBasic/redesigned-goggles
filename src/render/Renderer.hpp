@@ -24,6 +24,7 @@ public:
     bool initialize(SDL_Window* window);
     void shutdown();
     void setAmbient(float value);
+    void setGlobalTint(float r, float g, float b);
     void render(const Map& map, const Player& player, const Light& playerLight, const Light& lampLight);
 
 private:
@@ -42,6 +43,9 @@ private:
     SDL_Window* m_window = nullptr;
     SDL_GLContext m_context = nullptr;
     float m_ambient = 0.35F;
+    float m_globalTintR = 1.0F;
+    float m_globalTintG = 1.0F;
+    float m_globalTintB = 1.0F;
     bool m_forceCpuPath = false;
 
     int m_targetWidth = 0;

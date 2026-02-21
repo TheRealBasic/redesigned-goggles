@@ -13,6 +13,15 @@
 
 namespace {
 constexpr float kTau = 6.28318530718F;
+
+float smoothstep(float edge0, float edge1, float x) {
+    const float t = std::clamp((x - edge0) / (edge1 - edge0), 0.0F, 1.0F);
+    return t * t * (3.0F - 2.0F * t);
+}
+
+float mix(float a, float b, float t) {
+    return a + (b - a) * t;
+}
 }
 
 bool Application::run() {
@@ -96,9 +105,32 @@ bool Application::run() {
             playerLight.x = player.x();
             playerLight.y = player.y();
 
-            const float dayNight = 0.5F + 0.5F * std::sin(worldTime * 0.12F);
-            const float ambient = 0.14F + 0.22F * dayNight;
+            constexpr float kDayLengthSeconds = 72.0F;
+            const float dayPhase = std::fmod(worldTime / kDayLengthSeconds, 1.0F);
+
+            const float dawn = smoothstep(0.20F, 0.32F, dayPhase);
+            const float dusk = smoothstep(0.68F, 0.82F, dayPhase);
+            const float daylight = std::clamp(dawn - dusk, 0.0F, 1.0F);
+            const float twilight = std::clamp((dawn * (1.0F - daylight)) + (dusk * (1.0F - daylight)), 0.0F, 1.0F);
+
+            const float ambient = mix(0.11F, 0.38F, daylight) + 0.06F * twilight;
             renderer.setAmbient(ambient);
+
+            const float nightTintR = 0.72F;
+            const float nightTintG = 0.82F;
+            const float nightTintB = 1.05F;
+            const float duskTintR = 1.12F;
+            const float duskTintG = 0.95F;
+            const float duskTintB = 0.82F;
+
+            const float baseTintR = mix(nightTintR, 1.0F, daylight);
+            const float baseTintG = mix(nightTintG, 1.0F, daylight);
+            const float baseTintB = mix(nightTintB, 1.0F, daylight);
+
+            const float tintR = mix(baseTintR, duskTintR, twilight);
+            const float tintG = mix(baseTintG, duskTintG, twilight);
+            const float tintB = mix(baseTintB, duskTintB, twilight);
+            renderer.setGlobalTint(tintR, tintG, tintB);
 
             const float playerFlicker = 0.93F + 0.07F * std::sin(worldTime * 14.0F + 1.1F);
             const float lampFlicker = 0.9F + 0.1F * std::sin(worldTime * 9.0F + 0.3F) * std::sin(worldTime * 5.0F + 0.8F);
