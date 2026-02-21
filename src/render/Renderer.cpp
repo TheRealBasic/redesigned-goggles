@@ -8,6 +8,7 @@
 #include <SDL2/SDL_opengl_glext.h>
 
 #include <algorithm>
+#include <cstdint>
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
@@ -48,6 +49,76 @@ float pseudoLight(float tileX, float tileY, const Light& light) {
     }
 
     return attenuation * light.intensity;
+}
+
+struct OcclusionCache {
+    int width = 0;
+    int height = 0;
+    std::vector<int8_t> values;
+
+    explicit OcclusionCache(int w, int h) : width(w), height(h), values(static_cast<size_t>(w * h), static_cast<int8_t>(-1)) {}
+
+    int index(int x, int y) const {
+        return y * width + x;
+    }
+
+    int8_t get(int x, int y) const {
+        return values[static_cast<size_t>(index(x, y))];
+    }
+
+    void set(int x, int y, int8_t value) {
+        values[static_cast<size_t>(index(x, y))] = value;
+    }
+};
+
+bool hasLineOcclusion(const Map& map, int fromX, int fromY, int toX, int toY) {
+    int x = fromX;
+    int y = fromY;
+
+    const int dx = std::abs(toX - fromX);
+    const int sx = fromX < toX ? 1 : -1;
+    const int dy = -std::abs(toY - fromY);
+    const int sy = fromY < toY ? 1 : -1;
+    int err = dx + dy;
+
+    while (!(x == toX && y == toY)) {
+        const int twiceErr = err * 2;
+        if (twiceErr >= dy) {
+            err += dy;
+            x += sx;
+        }
+        if (twiceErr <= dx) {
+            err += dx;
+            y += sy;
+        }
+
+        if (x == toX && y == toY) {
+            break;
+        }
+
+        if (map.isBlocked(x, y)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+float directWithOcclusion(const Map& map, int tileX, int tileY, const Light& light, OcclusionCache& cache) {
+    const int cacheState = cache.get(tileX, tileY);
+    bool occluded = false;
+    if (cacheState >= 0) {
+        occluded = cacheState == 1;
+    } else {
+        const int lightTileX = static_cast<int>(std::round(light.x));
+        const int lightTileY = static_cast<int>(std::round(light.y));
+        occluded = hasLineOcclusion(map, lightTileX, lightTileY, tileX, tileY);
+        cache.set(tileX, tileY, static_cast<int8_t>(occluded ? 1 : 0));
+    }
+
+    constexpr float kOccludedDirectScale = 0.12F;
+    const float direct = pseudoLight(static_cast<float>(tileX), static_cast<float>(tileY), light);
+    return direct * (occluded ? kOccludedDirectScale : 1.0F);
 }
 } // namespace
 
@@ -360,6 +431,9 @@ void Renderer::renderCpuLighting(const Map& map, const Player& player, const Lig
     glMatrixMode(GL_MODELVIEW);
     glLoadIdentity();
 
+    OcclusionCache playerOcclusion(map.width(), map.height());
+    OcclusionCache lampOcclusion(map.width(), map.height());
+
     glBegin(GL_QUADS);
     for (int y = 0; y < map.height(); ++y) {
         for (int x = 0; x < map.width(); ++x) {
@@ -367,8 +441,8 @@ void Renderer::renderCpuLighting(const Map& map, const Player& player, const Lig
             const float sx = kOriginX + (x - y) * (kTileW * 0.5F);
             const float sy = kOriginY + (x + y) * (kTileH * 0.5F);
 
-            const float playerContribution = pseudoLight(static_cast<float>(x), static_cast<float>(y), playerLight);
-            const float lampContribution = pseudoLight(static_cast<float>(x), static_cast<float>(y), lampLight);
+            const float playerContribution = directWithOcclusion(map, x, y, playerLight, playerOcclusion);
+            const float lampContribution = directWithOcclusion(map, x, y, lampLight, lampOcclusion);
             const float ambient = m_ambient;
 
             float lightR = 0.68F * ambient + playerLight.r * playerContribution + lampLight.r * lampContribution;
