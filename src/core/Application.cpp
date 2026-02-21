@@ -10,6 +10,10 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <filesystem>
+#include <iostream>
+
+namespace fs = std::filesystem;
 
 namespace {
 constexpr float kTau = 6.28318530718F;
@@ -22,10 +26,28 @@ float smoothstep(float edge0, float edge1, float x) {
 float mix(float a, float b, float t) {
     return a + (b - a) * t;
 }
+
+fs::path resolveAssetPath(const fs::path& relativePath) {
+    if (fs::exists(relativePath)) {
+        return relativePath;
+    }
+
+    const char* basePath = SDL_GetBasePath();
+    if (basePath != nullptr) {
+        const fs::path candidate = fs::path(basePath) / relativePath;
+        SDL_free(const_cast<char*>(basePath));
+        if (fs::exists(candidate)) {
+            return candidate;
+        }
+    }
+
+    return relativePath;
+}
 }
 
 bool Application::run() {
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER) != 0) {
+        std::cerr << "SDL_Init failed: " << SDL_GetError() << '\n';
         return false;
     }
 
@@ -42,19 +64,23 @@ bool Application::run() {
         SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE);
 
     if (window == nullptr) {
+        std::cerr << "SDL_CreateWindow failed: " << SDL_GetError() << '\n';
         SDL_Quit();
         return false;
     }
 
     Renderer renderer;
     if (!renderer.initialize(window)) {
+        std::cerr << "Renderer initialization failed.\n";
         SDL_DestroyWindow(window);
         SDL_Quit();
         return false;
     }
 
     Map map;
-    if (!map.loadFromAsciiFile("data/maps/frontier_town.map")) {
+    const fs::path mapPath = resolveAssetPath("data/maps/frontier_town.map");
+    if (!map.loadFromAsciiFile(mapPath.string())) {
+        std::cerr << "Failed to load map: " << mapPath << '\n';
         renderer.shutdown();
         SDL_DestroyWindow(window);
         SDL_Quit();
