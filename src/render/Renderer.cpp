@@ -8,11 +8,14 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <vector>
 #include <type_traits>
+#include <iostream>
 
+namespace fs = std::filesystem;
 
 namespace {
 
@@ -87,6 +90,23 @@ void main() {
 )";
 
 constexpr char kUseGpuLightingEnv[] = "RENDERER_FORCE_CPU_LIGHTING";
+
+fs::path resolveResourcePath(const fs::path& relativePath) {
+    if (fs::exists(relativePath)) {
+        return relativePath;
+    }
+
+    const char* basePath = SDL_GetBasePath();
+    if (basePath != nullptr) {
+        const fs::path candidate = fs::path(basePath) / relativePath;
+        SDL_free(const_cast<char*>(basePath));
+        if (fs::exists(candidate)) {
+            return candidate;
+        }
+    }
+
+    return relativePath;
+}
 
 float pseudoLight(float tileX, float tileY, const Light& light) {
     const float dx = tileX - light.x;
@@ -181,17 +201,24 @@ bool Renderer::initialize(SDL_Window* window) {
     m_window = window;
     m_context = SDL_GL_CreateContext(window);
     if (m_context == nullptr) {
+        std::cerr << "SDL_GL_CreateContext failed: " << SDL_GetError() << '\n';
         return false;
     }
 
     const char* forceCpu = std::getenv(kUseGpuLightingEnv);
     if (!loadGlFunctions()) {
+        std::cerr << "Required OpenGL entry points are unavailable; falling back to CPU lighting path.\n";
         m_forceCpuPath = true;
         return true;
     }
     m_forceCpuPath = forceCpu != nullptr && forceCpu[0] != '\0' && forceCpu[0] != '0';
 
+    if (m_forceCpuPath) {
+        std::cerr << "GPU lighting disabled by " << kUseGpuLightingEnv << "; using CPU lighting path.\n";
+    }
+
     if (!m_forceCpuPath && !initializeGpuPipeline()) {
+        std::cerr << "GPU lighting pipeline init failed; falling back to CPU lighting path.\n";
         m_forceCpuPath = true;
     }
 
@@ -323,12 +350,20 @@ bool Renderer::initializeGpuPipeline() {
         return false;
     }
 
+    const fs::path albedoPath = resolveResourcePath("assets/shaders/albedo.glsl");
+    const fs::path lightPath = resolveResourcePath("assets/shaders/light.glsl");
+    const fs::path compositePath = resolveResourcePath("assets/shaders/composite.glsl");
+
     std::string albedoFragment;
     std::string lightFragment;
     std::string compositeFragment;
-    if (!loadShaderSource("assets/shaders/albedo.glsl", albedoFragment) ||
-        !loadShaderSource("assets/shaders/light.glsl", lightFragment) ||
-        !loadShaderSource("assets/shaders/composite.glsl", compositeFragment)) {
+    if (!loadShaderSource(albedoPath.string().c_str(), albedoFragment) ||
+        !loadShaderSource(lightPath.string().c_str(), lightFragment) ||
+        !loadShaderSource(compositePath.string().c_str(), compositeFragment)) {
+        std::cerr << "Failed to load shader sources from:\n"
+                  << "  " << albedoPath << "\n"
+                  << "  " << lightPath << "\n"
+                  << "  " << compositePath << "\n";
         glDeleteShader(fullscreenVs);
         return false;
     }
@@ -466,6 +501,7 @@ bool Renderer::ensureRenderTargets() {
 bool Renderer::loadShaderSource(const char* path, std::string& outSource) const {
     std::ifstream file(path);
     if (!file.is_open()) {
+        std::cerr << "Unable to open shader source: " << path << '\n';
         return false;
     }
 
